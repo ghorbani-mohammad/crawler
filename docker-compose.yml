@@ -1,0 +1,56 @@
+version: '3'
+
+services:
+
+  crawler_v2_db:
+    container_name: crawler_v2_db
+    image: mdillon/postgis:11
+    restart: unless-stopped
+    volumes:
+      - crawler_v2_db:/var/lib/postgresql/data
+
+  crawler_v2_api:
+    container_name: crawler_v2_api
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - crawler_v2_db
+    volumes:
+      - .:/app
+    ports:
+      - 8053:80
+    command: ["python", "/app/crawler_v2/manage.py", "runserver", "0:80"]
+    environment:
+      DEBUG: 'True'
+
+  crawler_v2_celery:
+    container_name: crawler_v2_celery
+    build: .
+    working_dir: /app/crawler_v2
+    command: ["celery", "-A", "crawler_v2", "worker", "-l", "info"]
+    restart: unless-stopped
+    volumes:
+      - .:/app
+    depends_on:
+      - crawler_v2_db
+      - crawler_v2_redis
+
+  crawler_v2_beat:
+    container_name: crawler_v2_beat
+    build: .
+    working_dir: /app/crawler_v2
+    command: ["celery", "-A", "crawler_v2", "beat", "-l", "info"]
+    restart: unless-stopped
+    volumes:
+      - .:/app
+    depends_on:
+      - crawler_v2_db
+      - crawler_v2_redis
+
+  crawler_v2_redis:
+    container_name : crawler_v2_redis
+    image: redis:5.0.8
+    restart: unless-stopped
+
+volumes:
+  crawler_v2_db:
